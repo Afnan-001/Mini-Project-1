@@ -6,9 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Search, MapPin, Clock, Star } from 'lucide-react';
 import { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function HeroSection() {
   const [searchQuery, setSearchQuery] = useState('');
+  const { user, firebaseUser } = useAuth();
 
   return (
     <section className="relative py-20 overflow-hidden">
@@ -45,16 +47,35 @@ export function HeroSection() {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4 mb-8">
-              <Link href="/browse" className="flex-1">
-                <Button size="lg" className="w-full bg-green-500 hover:bg-green-600 text-lg py-6">
-                  Browse All Turfs
-                </Button>
-              </Link>
-              <Link href="/owner/register" className="flex-1">
-                <Button size="lg" variant="outline" className="w-full text-lg py-6 border-green-300 hover:bg-green-50">
-                  List Your Turf
-                </Button>
-              </Link>
+              {firebaseUser && user ? (
+                // User is logged in - show role-specific actions
+                <>
+                  <Link href="/browse" className="flex-1">
+                    <Button size="lg" className="w-full bg-green-500 hover:bg-green-600 text-lg py-6">
+                      Browse All Turfs
+                    </Button>
+                  </Link>
+                  <Link href={user.role === 'owner' ? '/dashboard/turf-owner' : '/dashboard/player'} className="flex-1">
+                    <Button size="lg" variant="outline" className="w-full text-lg py-6 border-green-300 hover:bg-green-50">
+                      Go to Dashboard
+                    </Button>
+                  </Link>
+                </>
+              ) : (
+                // User is not logged in - show registration options
+                <>
+                  <Link href="/browse" className="flex-1">
+                    <Button size="lg" className="w-full bg-green-500 hover:bg-green-600 text-lg py-6">
+                      Browse All Turfs
+                    </Button>
+                  </Link>
+                  <Link href="/auth/register" className="flex-1">
+                    <Button size="lg" variant="outline" className="w-full text-lg py-6 border-green-300 hover:bg-green-50">
+                      Get Started
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
 
             <div className="flex items-center space-x-6 text-sm text-gray-600">

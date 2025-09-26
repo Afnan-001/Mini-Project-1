@@ -2,9 +2,21 @@
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { MapPin, ArrowLeft, User } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { MapPin, ArrowLeft, User, LogOut } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function BookingHeader() {
+  const { user, firebaseUser, logout } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -29,12 +41,52 @@ export function BookingHeader() {
           </div>
 
           <div className="flex items-center space-x-4">
-            <Link href="/auth/login">
-              <Button variant="outline" size="sm">
-                <User className="h-4 w-4 mr-2" />
-                Login
-              </Button>
-            </Link>
+            {firebaseUser && user ? (
+              // User is logged in
+              <div className="flex items-center space-x-3">
+                <div className="text-right">
+                  <p className="text-sm font-medium text-gray-900">
+                    {user.name}
+                  </p>
+                  <Badge 
+                    variant="secondary" 
+                    className={user.role === 'owner' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}
+                  >
+                    {user.role === 'owner' ? 'Owner' : 'Customer'}
+                  </Badge>
+                </div>
+                
+                <Link href={user.role === 'owner' ? '/dashboard/turf-owner' : '/dashboard/player'}>
+                  <Button variant="outline" size="sm">
+                    Dashboard
+                  </Button>
+                </Link>
+                
+                <Button 
+                  onClick={handleLogout}
+                  variant="outline" 
+                  size="sm"
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Logout
+                </Button>
+              </div>
+            ) : (
+              // User is not logged in
+              <div className="flex items-center space-x-2">
+                <Link href="/auth/login">
+                  <Button variant="outline" size="sm">
+                    <User className="h-4 w-4 mr-2" />
+                    Login
+                  </Button>
+                </Link>
+                <Link href="/auth/register">
+                  <Button size="sm">
+                    Register
+                  </Button>
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </div>

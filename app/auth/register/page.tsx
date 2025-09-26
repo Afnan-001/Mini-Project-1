@@ -10,29 +10,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { MapPin, Mail, Lock, User, Phone, Building, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
-import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Define user types
-type UserRole = 'player' | 'owner';
-
-interface UserData {
-  uid: string;
-  name: string;
-  email: string;
-  phone: string;
-  role: UserRole;
-  businessName?: string;
-  createdAt: Date;
-}
+type UserRole = 'customer' | 'owner';
 
 export default function RegisterPage() {
-  const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
+  const { register, loading } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   
-  const [playerForm, setPlayerForm] = useState({
+  const [customerForm, setCustomerForm] = useState({
     name: '',
     email: '',
     phone: '',
@@ -51,36 +39,14 @@ export default function RegisterPage() {
     acceptTerms: false
   });
 
-  // Function to save user data to MongoDB
-  const saveUserToMongoDB = async (userData: UserData) => {
-    try {
-      const response = await fetch('/api/users', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(userData),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to save user data to database');
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Error saving user to MongoDB:', error);
-      throw error;
-    }
-  };
-
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent, role: UserRole) => {
     e.preventDefault();
-    setIsLoading(true);
     setError(null);
+    setSuccess(null);
 
     try {
-      const formData = role === 'player' ? playerForm : ownerForm;
+      const formData = role === 'customer' ? customerForm : ownerForm;
       
       // Validate form
       if (!formData.acceptTerms) {
@@ -95,44 +61,46 @@ export default function RegisterPage() {
         throw new Error('Password should be at least 6 characters');
       }
 
-      // Create user with Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(
-        auth, 
-        formData.email, 
-        formData.password
-      );
-      
-      // Update profile with display name
-      await updateProfile(userCredential.user, {
-        displayName: formData.name
-      });
-
-      // Prepare user data for MongoDB
-      const userData: UserData = {
-        uid: userCredential.user.uid,
+      // Prepare registration data
+      const registrationData = {
         name: formData.name,
         email: formData.email,
-        phone: formData.phone,
+        password: formData.password,
         role,
-        createdAt: new Date(),
+        phone: formData.phone,
+        businessName: role === 'owner' ? ownerForm.businessName : undefined,
       };
 
-      // Add business name if it's an owner
-      if (role === 'owner') {
-        userData.businessName = ownerForm.businessName;
+      // Register user using AuthContext
+      await register(registrationData);
+      
+      setSuccess('Registration successful! Please check your email to verify your account before logging in.');
+      
+      // Reset form
+      if (role === 'customer') {
+        setCustomerForm({
+          name: '',
+          email: '',
+          phone: '',
+          password: '',
+          confirmPassword: '',
+          acceptTerms: false
+        });
+      } else {
+        setOwnerForm({
+          name: '',
+          email: '',
+          phone: '',
+          businessName: '',
+          password: '',
+          confirmPassword: '',
+          acceptTerms: false
+        });
       }
-
-      // Save user data to MongoDB
-      await saveUserToMongoDB(userData);
-
-      // Redirect based on role
-      router.push(role === 'player' ? '/dashboard/player' : '/dashboard/owner');
       
     } catch (error: any) {
       console.error('Registration error:', error);
       setError(error.message || 'An error occurred during registration');
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -164,72 +132,79 @@ export default function RegisterPage() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
+
+            {success && (
+              <Alert className="mb-4 border-green-200 bg-green-50">
+                <AlertCircle className="h-4 w-4 text-green-600" />
+                <AlertDescription className="text-green-700">{success}</AlertDescription>
+              </Alert>
+            )}
             
-            <Tabs defaultValue="player" className="w-full">
+            <Tabs defaultValue="customer" className="w-full">
               <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="player">Player</TabsTrigger>
+                <TabsTrigger value="customer">Customer</TabsTrigger>
                 <TabsTrigger value="owner">Turf Owner</TabsTrigger>
               </TabsList>
               
-              <TabsContent value="player">
-                <form onSubmit={(e) => handleSubmit(e, 'player')} className="space-y-4">
+              <TabsContent value="customer">
+                <form onSubmit={(e) => handleSubmit(e, 'customer')} className="space-y-4">
                   <div>
-                    <Label htmlFor="player-name">Full Name</Label>
+                    <Label htmlFor="customer-name">Full Name</Label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
-                        id="player-name"
+                        id="customer-name"
                         placeholder="John Doe"
                         className="pl-10"
-                        value={playerForm.name}
-                        onChange={(e) => setPlayerForm({...playerForm, name: e.target.value})}
+                        value={customerForm.name}
+                        onChange={(e) => setCustomerForm({...customerForm, name: e.target.value})}
                         required
                       />
                     </div>
                   </div>
 
                   <div>
-                    <Label htmlFor="player-email">Email</Label>
+                    <Label htmlFor="customer-email">Email</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
-                        id="player-email"
+                        id="customer-email"
                         type="email"
                         placeholder="your.email@example.com"
                         className="pl-10"
-                        value={playerForm.email}
-                        onChange={(e) => setPlayerForm({...playerForm, email: e.target.value})}
+                        value={customerForm.email}
+                        onChange={(e) => setCustomerForm({...customerForm, email: e.target.value})}
                         required
                       />
                     </div>
                   </div>
 
                   <div>
-                    <Label htmlFor="player-phone">Phone Number</Label>
+                    <Label htmlFor="customer-phone">Phone Number</Label>
                     <div className="relative">
                       <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
-                        id="player-phone"
+                        id="customer-phone"
                         placeholder="+91 98765 43210"
                         className="pl-10"
-                        value={playerForm.phone}
-                        onChange={(e) => setPlayerForm({...playerForm, phone: e.target.value})}
+                        value={customerForm.phone}
+                        onChange={(e) => setCustomerForm({...customerForm, phone: e.target.value})}
                         required
                       />
                     </div>
                   </div>
                   
                   <div>
-                    <Label htmlFor="player-password">Password</Label>
+                    <Label htmlFor="customer-password">Password</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
-                        id="player-password"
+                        id="customer-password"
                         type="password"
                         placeholder="Create a strong password"
                         className="pl-10"
-                        value={playerForm.password}
-                        onChange={(e) => setPlayerForm({...playerForm, password: e.target.value})}
+                        value={customerForm.password}
+                        onChange={(e) => setCustomerForm({...customerForm, password: e.target.value})}
                         required
                         minLength={6}
                       />
@@ -237,16 +212,16 @@ export default function RegisterPage() {
                   </div>
 
                   <div>
-                    <Label htmlFor="player-confirm">Confirm Password</Label>
+                    <Label htmlFor="customer-confirm">Confirm Password</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-40" />
                       <Input
-                        id="player-confirm"
+                        id="customer-confirm"
                         type="password"
                         placeholder="Confirm your password"
                         className="pl-10"
-                        value={playerForm.confirmPassword}
-                        onChange={(e) => setPlayerForm({...playerForm, confirmPassword: e.target.value})}
+                        value={customerForm.confirmPassword}
+                        onChange={(e) => setCustomerForm({...customerForm, confirmPassword: e.target.value})}
                         required
                         minLength={6}
                       />
@@ -255,12 +230,12 @@ export default function RegisterPage() {
 
                   <div className="flex items-center space-x-2">
                     <Checkbox 
-                      id="player-terms"
-                      checked={playerForm.acceptTerms}
-                      onCheckedChange={(checked) => setPlayerForm({...playerForm, acceptTerms: checked as boolean})}
+                      id="customer-terms"
+                      checked={customerForm.acceptTerms}
+                      onCheckedChange={(checked) => setCustomerForm({...customerForm, acceptTerms: checked as boolean})}
                       required
                     />
-                    <Label htmlFor="player-terms" className="text-sm">
+                    <Label htmlFor="customer-terms" className="text-sm">
                       I agree to the{' '}
                       <Link href="/terms" className="text-green-600 hover:underline">
                         Terms of Service
@@ -276,9 +251,9 @@ export default function RegisterPage() {
                     className="w-full bg-green-500 hover:bg-green-600" 
                     size="lg"
                     type="submit"
-                    disabled={isLoading}
+                    disabled={loading}
                   >
-                    {isLoading ? 'Creating Account...' : 'Create Player Account'}
+                    {loading ? 'Creating Account...' : 'Create Customer Account'}
                   </Button>
                 </form>
               </TabsContent>
@@ -403,9 +378,9 @@ export default function RegisterPage() {
                     className="w-full bg-blue-500 hover:bg-blue-600" 
                     size="lg"
                     type="submit"
-                    disabled={isLoading}
+                    disabled={loading}
                   >
-                    {isLoading ? 'Creating Account...' : 'Create Owner Account'}
+                    {loading ? 'Creating Account...' : 'Create Owner Account'}
                   </Button>
                 </form>
               </TabsContent>

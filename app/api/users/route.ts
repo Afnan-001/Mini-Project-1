@@ -1,43 +1,175 @@
-// For Next.js Pages Router (/pages/api/users.ts)
-import { NextApiRequest, NextApiResponse } from 'next';
-import { MongoClient } from 'mongodb';
+import { NextRequest, NextResponse } from 'next/server';
+import clientPromise from '@/lib/mongodb';
+import { ObjectId } from 'mongodb';
 
-const uri = process.env.MONGODB_URI as string;
-const client = new MongoClient(uri);
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method === 'POST') {
-    try {
-      await client.connect();
-      const database = client.db('turf_booking');
-      const users = database.collection('users');
-      
-      const userData = req.body;
-      
-      // Check if user already exists
-      const existingUser = await users.findOne({ 
-        $or: [{ email: userData.email }, { uid: userData.uid }] 
-      });
-      
-      if (existingUser) {
-        return res.status(400).json({ message: 'User already exists' });
-      }
-      
-      // Insert new user
-      const result = await users.insertOne(userData);
-      
-      res.status(201).json({ 
-        message: 'User created successfully', 
-        id: result.insertedId 
-      });
-    } catch (error) {
-      console.error('Error saving user to MongoDB:', error);
-      res.status(500).json({ message: 'Internal server error' });
-    } finally {
-      await client.close();
+/**
+ * POST /api/users - Create a new user in MongoDB
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    
+    // Validate required fields
+    const { uid, name, email, role } = body;
+    
+    if (!uid || !name || !email || !role) {
+      return NextResponse.json(
+        { error: 'Missing required fields: uid, name, email, role' },
+        { status: 400 }
+      );
     }
-  } else {
-    res.setHeader('Allow', ['POST']);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
+
+    if (!['customer', 'owner'].includes(role)) {
+      return NextResponse.json(
+        { error: 'Invalid role. Must be either "customer" or "owner"' },
+        { status: 400 }
+      );
+    }
+
+    const client = await clientPromise;
+    const db = client.db('turf_booking');
+    const users = db.collection('users');
+    
+    // Check if user already exists
+    const existingUser = await users.findOne({ 
+      $or: [{ email }, { uid }] 
+    });
+    
+    if (existingUser) {
+      return NextResponse.json(
+        { error: 'User already exists with this email or Firebase UID' },
+        { status: 409 }
+      );
+    }
+    
+    // Prepare user data
+    const userData = {
+      uid,
+      name,
+      email: email.toLowerCase(),
+      role,
+      phone: body.phone || null,
+      businessName: role === 'owner' ? body.businessName : null,
+      emailVerified: false,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    // Insert new user
+    const result = await users.insertOne(userData);
+    
+    return NextResponse.json({ 
+      message: 'User created successfully',
+      userId: result.insertedId,
+      user: {
+        ...userData,
+        _id: result.insertedId
+      }
+    }, { status: 201 });
+    
+  } catch (error) {
+    console.error('Error creating user:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * GET /api/users?uid=<firebase_uid> - Get user by Firebase UID
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const uid = request.nextUrl.searchParams.get('uid');
+    const email = request.nextUrl.searchParams.get('email');
+    
+    if (!uid && !email) {
+      return NextResponse.json(
+        { error: 'Either uid or email parameter is required' },
+        { status: 400 }
+      );
+    }
+
+    const client = await clientPromise;
+    const db = client.db('turf_booking');
+    const users = db.collection('users');
+    
+    let query = {};
+    if (uid) {
+      query = { uid };
+    } else if (email) {
+      query = { email: email.toLowerCase() };
+    }
+    
+    const user = await users.findOne(query);
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+    
+    return NextResponse.json({ user });
+    
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH /api/users - Update user data
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { uid, ...updateData } = body;
+    
+    if (!uid) {
+      return NextResponse.json(
+        { error: 'Firebase UID is required' },
+        { status: 400 }
+      );
+    }
+
+    const client = await clientPromise;
+    const db = client.db('turf_booking');
+    const users = db.collection('users');
+    
+    // Add updatedAt timestamp
+    updateData.updatedAt = new Date();
+    
+    const result = await users.updateOne(
+      { uid },
+      { $set: updateData }
+    );
+    
+    if (result.matchedCount === 0) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+    
+    // Get updated user
+    const updatedUser = await users.findOne({ uid });
+    
+    return NextResponse.json({ 
+      message: 'User updated successfully',
+      user: updatedUser
+    });
+    
+  } catch (error) {
+    console.error('Error updating user:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

@@ -6,19 +6,35 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MapPin, Mail, Lock, User, Phone } from 'lucide-react';
+import { MapPin, Mail, Lock, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginPage() {
-  const [playerForm, setPlayerForm] = useState({
+  const { login, loading } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+  
+  const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
 
-  const [ownerForm, setOwnerForm] = useState({
-    email: '',
-    password: ''
-  });
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    try {
+      if (!formData.email || !formData.password) {
+        throw new Error('Please fill in all fields');
+      }
+
+      await login(formData.email, formData.password);
+      
+    } catch (error: any) {
+      console.error('Login error:', error);
+      setError(error.message || 'An error occurred during login');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center p-4">
@@ -42,88 +58,55 @@ export default function LoginPage() {
             <CardTitle className="text-center">Login</CardTitle>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="player" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="player">Player</TabsTrigger>
-                <TabsTrigger value="owner">Turf Owner</TabsTrigger>
-              </TabsList>
+            {error && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="your.email@example.com"
+                    className="pl-10"
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    required
+                  />
+                </div>
+              </div>
               
-              <TabsContent value="player">
-                <form className="space-y-4">
-                  <div>
-                    <Label htmlFor="player-email">Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="player-email"
-                        type="email"
-                        placeholder="your.email@example.com"
-                        className="pl-10"
-                        value={playerForm.email}
-                        onChange={(e) => setPlayerForm({...playerForm, email: e.target.value})}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="player-password">Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="player-password"
-                        type="password"
-                        placeholder="Enter your password"
-                        className="pl-10"
-                        value={playerForm.password}
-                        onChange={(e) => setPlayerForm({...playerForm, password: e.target.value})}
-                      />
-                    </div>
-                  </div>
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Enter your password"
+                    className="pl-10"
+                    value={formData.password}
+                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    required
+                  />
+                </div>
+              </div>
 
-                  <Button className="w-full bg-green-500 hover:bg-green-600" size="lg">
-                    Sign In as Player
-                  </Button>
-                </form>
-              </TabsContent>
-              
-              <TabsContent value="owner">
-                <form className="space-y-4">
-                  <div>
-                    <Label htmlFor="owner-email">Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="owner-email"
-                        type="email"
-                        placeholder="owner@example.com"
-                        className="pl-10"
-                        value={ownerForm.email}
-                        onChange={(e) => setOwnerForm({...ownerForm, email: e.target.value})}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="owner-password">Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="owner-password"
-                        type="password"
-                        placeholder="Enter your password"
-                        className="pl-10"
-                        value={ownerForm.password}
-                        onChange={(e) => setOwnerForm({...ownerForm, password: e.target.value})}
-                      />
-                    </div>
-                  </div>
-
-                  <Button className="w-full bg-blue-500 hover:bg-blue-600" size="lg">
-                    Sign In as Owner
-                  </Button>
-                </form>
-              </TabsContent>
-            </Tabs>
+              <Button 
+                className="w-full bg-green-500 hover:bg-green-600" 
+                size="lg"
+                type="submit"
+                disabled={loading}
+              >
+                {loading ? 'Signing In...' : 'Sign In'}
+              </Button>
+            </form>
 
             <div className="mt-6 text-center">
               <Link href="/auth/forgot-password" className="text-sm text-green-600 hover:underline">

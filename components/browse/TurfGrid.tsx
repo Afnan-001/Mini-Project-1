@@ -89,7 +89,7 @@ export function TurfGrid({ filters, searchQuery, sortBy }: TurfGridProps) {
       rating: 4.5,
       reviews: 67,
       price: 500,
-      image: 'https://images.pexels.com/photos/1693600/pexels-photo-1693600.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+      image: 'https://images.pexels.com/photos/257970/pexels-photo-257970.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
       amenities: ['AC', 'Washroom', 'Parking'],
       availability: 'Available Today',
       description: 'Indoor multi-sport facility for various games',
